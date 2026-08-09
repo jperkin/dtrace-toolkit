@@ -120,6 +120,15 @@ if [ $opt_cmd -eq 1 ]; then
 	filter=1
 fi
 
+### size the ZONE column to the longest running zone name
+zonew=10
+if [ $opt_zone -eq 1 ]; then
+	zonew=`/usr/sbin/zoneadm list 2>/dev/null | awk '
+	    { if (length($0) > w) w = length($0) }
+	    END { if (w < 4) w = 4; print w }'`
+	[ -z "$zonew" ] && zonew=10
+fi
+
 ### projid reads curpsinfo->pr_projid, which needs dtrace_kernel
 proj_hdr='PROJ '; proj_fmt='%d '; proj_arg='curpsinfo->pr_projid,'
 if [ $opt_global -eq 0 ]; then
@@ -159,7 +168,7 @@ fi
 	/* print optional headers */
  	OPT_time    ? printf("%-14s ", "TIME") : 1;
  	OPT_timestr ? printf("%-20s ", "STRTIME") : 1;
- 	OPT_zone    ? printf("%-10s ", "ZONE") : 1;
+ 	OPT_zone    ? printf("%-'$zonew's ", "ZONE") : 1;
  	OPT_proj    ? printf("%5s ", "PROJ") : 1;
 
 	/* print main headers */
@@ -177,7 +186,7 @@ fi
 	/* print optional fields */
  	OPT_time ? printf("%-14d ", timestamp/1000) : 1;
 	OPT_timestr ? printf("%-20Y ", walltimestamp) : 1;
- 	OPT_zone ? printf("%-10s ", zonename) : 1;
+ 	OPT_zone ? printf("%-'$zonew's ", zonename) : 1;
  	OPT_proj ? printf("%5d ", curpsinfo->pr_projid) : 1;
 
 	/* print main data */
