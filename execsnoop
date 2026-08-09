@@ -74,6 +74,12 @@
 opt_dump=0; opt_cmd=0; opt_time=0; opt_timestr=0; filter=0; command=.
 opt_zone=0; opt_safe=0; opt_proj=0
 
+### skip unsupported probes when running inside a zone
+opt_global=1
+if [ -x /sbin/zonename ]; then
+	[ "`/sbin/zonename`" = "global" ] || opt_global=0
+fi
+
 ### process options
 while getopts aAc:ehjsvZ name
 do
@@ -114,6 +120,16 @@ if [ $opt_cmd -eq 1 ]; then
 	filter=1
 fi
 
+### projid reads curpsinfo->pr_projid, which needs dtrace_kernel
+proj_hdr='PROJ '; proj_fmt='%d '; proj_arg='curpsinfo->pr_projid,'
+if [ $opt_global -eq 0 ]; then
+	if [ $opt_proj -eq 1 -o $opt_dump -eq 1 ]; then
+		echo "execsnoop: projid unavailable in a non-global zone;" \
+		    "omitting" >&2
+	fi
+	opt_proj=0
+	proj_hdr=''; proj_fmt=''; proj_arg=''
+fi
 
 #################################
 # --- Main Program, DTrace ---
@@ -147,8 +163,8 @@ fi
  	OPT_proj    ? printf("%5s ", "PROJ") : 1;
 
 	/* print main headers */
-	OPT_dump    ? printf("%s %s %s %s %s %s %s %s\n",
-	    "TIME", "ZONE", "PROJ", "UID", "PID", "PPID", "COMM", "ARGS") :
+	OPT_dump    ? printf("%s %s '"$proj_hdr"'%s %s %s %s %s\n",
+	    "TIME", "ZONE", "UID", "PID", "PPID", "COMM", "ARGS") :
 	    printf("%5s %6s %6s %s\n", "UID", "PID", "PPID", "ARGS");
  }
 
@@ -165,8 +181,8 @@ fi
  	OPT_proj ? printf("%5d ", curpsinfo->pr_projid) : 1;
 
 	/* print main data */
-	OPT_dump ? printf("%d %s %d %d %d %d %s ", timestamp/1000,
-	    zonename, curpsinfo->pr_projid, uid, pid, ppid, execname) :
+	OPT_dump ? printf("%d %s '"$proj_fmt"'%d %d %d %s ", timestamp/1000,
+	    zonename, '"$proj_arg"' uid, pid, ppid, execname) :
 	    printf("%5d %6d %6d ", uid, pid, ppid);
 	OPT_safe ? printf("%S\n", curpsinfo->pr_psargs) :
 	    printf("%s\n", curpsinfo->pr_psargs);
